@@ -1,0 +1,23 @@
+# Streamlit secrets (Sensitive API keys)
+.streamlit/secrets.toml
+
+# SQLite Database (Local database)
+*.db
+*.db-journal
+
+# YOLO model weights (Large files)
+*.pt
+models/*.pt
+yolo*.pt
+
+# Python caches
+__pycache__/
+*.pyc
+
+# YOLO training runs
+runs/
+
+# IDEs and System files
+.vscode/
+.idea/
+.DS_Store
