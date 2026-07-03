@@ -389,12 +389,12 @@ def write_epc_to_reader(epc: str) -> bool:
 # DB 조작 함수
 # ══════════════════════════════════════════════════════════
 def db_issue_tag(tag_id: str, item_name: str, lot_number: str, quantity: int,
-                 category: str = "미분류", mat_number: str = "", batch_code: str = "") -> None:
+                 category: str = "미분류", mat_number: str = "", batch_code: str = "", location: str = "") -> None:
     """태그 발행 — 이미 존재하면 덮어씀"""
     with get_db() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO tags(tag_id,item_name,lot_number,quantity,issued_at,location,category,mat_number,batch_code) VALUES (?,?,?,?,?,?,?,?,?)",
-            (tag_id, item_name, lot_number, quantity, now_str(), "", category, mat_number, batch_code),
+            (tag_id, item_name, lot_number, quantity, now_str(), location, category, mat_number, batch_code),
         )
 
 
@@ -855,10 +855,11 @@ with tab1:
         mat_number = r1c2.text_input("자재번호", placeholder="예: MAT-001")
         item_name  = r1c3.text_input("자재명 *", placeholder="예: SUS304 판재 2T")
 
-        # 2행: 배치코드 / 수량
-        r2c1, r2c2 = st.columns([2, 1])
+        # 2행: 배치코드 / 저장위치 / 수량
+        r2c1, r2c2, r2c3 = st.columns([1.5, 1.5, 1])
         batch_code = r2c1.text_input("배치코드", placeholder="예: LOT-2024-001")
-        quantity   = r2c2.number_input("수량 (EA)", min_value=0, value=0)
+        location   = r2c2.text_input("저장위치", placeholder="예: A구역-1단-03번")
+        quantity   = r2c3.number_input("수량 (EA)", min_value=0, value=0)
 
         epc_mode   = st.radio("EPC 생성 방식", ["자동 생성 (UUID)", "직접 입력"], horizontal=True)
         manual_epc = ""
@@ -887,8 +888,8 @@ with tab1:
                 if st.session_state["connected"] and conn_type == "시리얼 (COM)":
                     write_ok = write_epc_to_reader(epc)
 
-                db_issue_tag(epc, item_name.strip(), batch_code.strip(), quantity, category, mat_number.strip(), batch_code.strip())
-                log(f"[ISSUE] {epc} / [{category}] {mat_number} {item_name} / {batch_code} / {quantity}EA")
+                db_issue_tag(epc, item_name.strip(), batch_code.strip(), quantity, category, mat_number.strip(), batch_code.strip(), location.strip())
+                log(f"[ISSUE] {epc} / [{category}] {mat_number} {item_name} / {batch_code} / {location} / {quantity}EA")
 
                 st.success("태그 발행 완료!")
                 st.code(
@@ -897,6 +898,7 @@ with tab1:
                     f"자재번호 : {mat_number}\n"
                     f"자재명   : {item_name}\n"
                     f"배치코드 : {batch_code}\n"
+                    f"저장위치 : {location}\n"
                     f"수량     : {quantity} EA\n"
                     f"발행일   : {now_str()}"
                 )
