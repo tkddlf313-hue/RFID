@@ -1,7 +1,7 @@
 """
 ============================================================
- 스마트 팩토리 UHF RFID 재고조사 시스템  v2.0
- 흐름: 입고·태그발행 → 창고 보관 → 재고조사 스캔 → 엑셀 출력
+ 스마트 팩토리 UHF RFID 재고조사 시스템  v2.1
+ 흐름: 입고·태그발행 → 출고스캔(QR) → 재고조사 스캔 → 엑셀 출력
 ============================================================
 """
 
@@ -32,6 +32,12 @@ import serial.tools.list_ports
 import streamlit as st
 from google import genai
 from google.genai import types
+try:
+    import qrcode
+    from PIL import Image as _PIL_Image
+    _QR_AVAILABLE = True
+except ImportError:
+    _QR_AVAILABLE = False
 
 
 # ══════════════════════════════════════════════════════════
@@ -109,6 +115,18 @@ def init_db() -> None:
                 tag_id      TEXT NOT NULL,
                 scanned_at  TEXT NOT NULL,
                 matched     INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS outgoing_log (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                tag_id     TEXT NOT NULL,
+                item_name  TEXT NOT NULL,
+                category   TEXT DEFAULT '',
+                mat_number TEXT DEFAULT '',
+                qty_out    INTEGER NOT NULL,
+                qty_before INTEGER NOT NULL,
+                qty_after  INTEGER NOT NULL,
+                out_at     TEXT NOT NULL,
+                reason     TEXT DEFAULT '소진'
             );
         """)
         # ── 기존 DB 마이그레이션: 없는 컬럼 추가 ──
@@ -440,6 +458,58 @@ def db_log_scan(tag_id: str, matched: bool) -> None:
             "INSERT INTO scan_log(tag_id, scanned_at, matched) VALUES(?,?,?)",
             (tag_id, now_str(), int(matched)),
         )
+
+
+def db_outgoing(tag_id: str, qty_out: int, reason: str = "소진") -> tuple[bool, str]:
+    """원발 차감 + 출고 이력 기록"""
+    tag = db_get_tag(tag_id)
+    if tag is None:
+        return False, "등록되지 않은 태그입니다."
+    qty_before = tag["quantity"]
+    if qty_out <= 0:
+        return False, "출고 수량은 1 이상이어야 합니다."
+    if qty_out > qty_before:
+        return False, f"출고 수량({qty_out})이 현재 재고({qty_before})를 초과합니다."
+    qty_after = qty_before - qty_out
+    with get_db() as conn:
+        conn.execute("UPDATE tags SET quantity=? WHERE tag_id=?", (qty_after, tag_id))
+        conn.execute(
+            "INSERT INTO outgoing_log(tag_id,item_name,category,mat_number,qty_out,qty_before,qty_after,out_at,reason) VALUES(?,?,?,?,?,?,?,?,?)",
+            (tag_id, tag["item_name"], tag.get("category", ""), tag.get("mat_number", ""),
+             qty_out, qty_before, qty_after, now_str(), reason),
+        )
+    return True, f"출고 완료: {qty_before} → {qty_after} EA"
+
+
+def db_all_outgoing() -> list[dict]:
+    """출고 이력 전체 조회 (최신순)"""
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM outgoing_log ORDER BY out_at DESC"
+        ).fetchall()]
+
+
+def gen_qr_image(epc: str) -> bytes | None:
+    """EPC를 담은 QR코드 PNG 이미지 생성"""
+    if not _QR_AVAILABLE:
+        return None
+    qr = qrcode.QRCode(version=1, box_size=8, border=3,
+                       error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(epc)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def decode_qr_from_bytes(img_bytes: bytes) -> str | None:
+    """카메라 이미지에서 QR코드 디코딩"""
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    detector = cv2.QRCodeDetector()
+    data, _, _ = detector.detectAndDecode(img)
+    return data.strip() if data else None
 
 
 # ══════════════════════════════════════════════════════════
@@ -832,12 +902,13 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════
 # 탭 구성
 # ══════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_out, tab2, tab3, tab4, tab5 = st.tabs([
     "📥 1. 입고 & 태그 발행",
-    "📡 2. 재고조사 스캔",
-    "📷 3. OCR 수량 보완",
-    "📊 4. 재고 현황 & 엑셀",
-    "🤖 5. YOLO 물체 감지",
+    "📤 2. 출고 스캔",
+    "📡 3. 재고조사 스캔",
+    "📷 4. OCR 수량 보완",
+    "📊 5. 재고 현황 & 엑셀",
+    "🤖 6. YOLO 물체 감지",
 ])
 
 
@@ -892,16 +963,32 @@ with tab1:
                 log(f"[ISSUE] {epc} / [{category}] {mat_number} {item_name} / {batch_code} / {location} / {quantity}EA")
 
                 st.success("태그 발행 완료!")
-                st.code(
-                    f"EPC      : {epc}\n"
-                    f"분류     : {category}\n"
-                    f"자재번호 : {mat_number}\n"
-                    f"자재명   : {item_name}\n"
-                    f"배치코드 : {batch_code}\n"
-                    f"저장위치 : {location}\n"
-                    f"수량     : {quantity} EA\n"
-                    f"발행일   : {now_str()}"
-                )
+                # ── 태그 정보 + QR 코드 나란히 표시 ──
+                _info_col, _qr_col = st.columns([2, 1])
+                with _info_col:
+                    st.code(
+                        f"EPC      : {epc}\n"
+                        f"분류     : {category}\n"
+                        f"자재번호 : {mat_number}\n"
+                        f"자재명   : {item_name}\n"
+                        f"배치코드 : {batch_code}\n"
+                        f"저장위치 : {location}\n"
+                        f"수량     : {quantity} EA\n"
+                        f"발행일   : {now_str()}"
+                    )
+                with _qr_col:
+                    _qr_bytes = gen_qr_image(epc)
+                    if _qr_bytes:
+                        st.image(_qr_bytes, caption="출고용 QR코드", use_container_width=True)
+                        st.download_button(
+                            "⬇️ QR 이미지 저장",
+                            data=_qr_bytes,
+                            file_name=f"QR_{epc[:8]}.png",
+                            mime="image/png",
+                            use_container_width=True,
+                        )
+                    else:
+                        st.caption("QR 생성 불가 (qrcode 라이브러리 필요)")
                 if st.session_state["connected"]:
                     if write_ok:
                         st.info("📡 리더기를 통해 태그에 EPC 기록 완료")
@@ -926,6 +1013,99 @@ with tab1:
         st.caption(f"총 {len(all_tags)}건 등록됨")
     else:
         st.info("아직 발행된 태그가 없습니다.")
+
+
+# ══════════════════════════════════════════════════════════
+# 탭 2 — 출고 스캔 (QR / EPC 직접)
+# ══════════════════════════════════════════════════════════
+OUTGOING_REASONS = ["소진", "파손", "반품", "기타"]
+
+with tab_out:
+    st.markdown("#### 📤 출고 스캔 — QR코드 또는 EPC 직접 입력")
+    st.info("스마트폰 카메라로 자재의 QR코드를 스캔하거나 EPC를 직접 입력해 출고 처리합니다.")
+
+    # ── 스캔 입력 방식 선택 ──
+    _out_mode = st.radio(
+        "스캔 방식", ["📷 QR 카메라 스캔", "⌨️ EPC 직접 입력"],
+        horizontal=True, key="out_mode"
+    )
+
+    _scanned_epc = ""
+
+    if _out_mode == "📷 QR 카메라 스캔":
+        _cam_img = st.camera_input("카메라로 QR코드를 스캔하세요", key="out_cam")
+        if _cam_img:
+            _decoded = decode_qr_from_bytes(_cam_img.getvalue())
+            if _decoded:
+                _scanned_epc = _decoded
+                st.success(f"✅ QR 인식: `{_scanned_epc}`")
+            else:
+                st.warning("QR코드를 인식하지 못했습니다. 더 가까이서 촬영해 보세요.")
+    else:
+        _scanned_epc = st.text_input(
+            "EPC 입력", placeholder="예: A1B2C3D4E5F60001",
+            key="out_epc_input"
+        ).upper().strip()
+
+    # ── 스캔된 EPC의 자재 정보 표시 ──
+    if _scanned_epc:
+        _out_tag = db_get_tag(_scanned_epc)
+        if _out_tag is None:
+            st.error(f"❌ 등록되지 않은 태그입니다: `{_scanned_epc}`")
+        else:
+            st.markdown("---")
+            st.markdown("##### 📦 자재 정보")
+            _oc1, _oc2, _oc3, _oc4 = st.columns(4)
+            _oc1.metric("자재 분류", _out_tag.get("category", "-"))
+            _oc2.metric("자재번호", _out_tag.get("mat_number", "-") or "-")
+            _oc3.metric("자재명", _out_tag["item_name"])
+            _oc4.metric("현재 재고", f"{_out_tag['quantity']} EA")
+
+            if _out_tag["quantity"] == 0:
+                st.error("⛔ 현재 재고가 0입니다. 출고할 수 없습니다.")
+            else:
+                st.markdown("---")
+                _q_col, _r_col = st.columns([1, 1])
+                _qty_out = _q_col.number_input(
+                    "출고 수량", min_value=1,
+                    max_value=int(_out_tag["quantity"]),
+                    value=1, key="out_qty"
+                )
+                _reason = _r_col.selectbox("출고 사유", OUTGOING_REASONS, key="out_reason")
+
+                _qty_after_preview = _out_tag["quantity"] - _qty_out
+                st.info(
+                    f"출고 확인 시: **{_out_tag['quantity']} EA → {_qty_after_preview} EA** "
+                    f"({'⚠️ 재고 소진!' if _qty_after_preview == 0 else ''})"
+                )
+
+                if st.button(
+                    f"✅ 출고 확인 ({_out_tag['quantity']} → {_qty_after_preview} EA)",
+                    type="primary", use_container_width=True, key="out_confirm"
+                ):
+                    _ok, _msg = db_outgoing(_scanned_epc, _qty_out, _reason)
+                    if _ok:
+                        log(f"[OUT] {_scanned_epc} | {_out_tag['item_name']} | -{_qty_out}EA | {_reason}")
+                        st.success(f"✅ {_msg}")
+                        if _qty_after_preview == 0:
+                            st.warning("⚠️ 해당 자재의 재고가 모두 소진되었습니다!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {_msg}")
+
+    st.markdown("---")
+    st.markdown("#### 📋 출고 이력")
+    _out_logs = db_all_outgoing()
+    if _out_logs:
+        _df_out = pd.DataFrame(_out_logs)[[
+            "out_at", "category", "mat_number", "item_name",
+            "qty_out", "qty_before", "qty_after", "reason"
+        ]]
+        _df_out.columns = ["출고일시", "분류", "자재번호", "자재명", "출고량", "출고전", "출고후", "사유"]
+        st.dataframe(_df_out, use_container_width=True, hide_index=True)
+        st.caption(f"총 {len(_out_logs)}건 출고")
+    else:
+        st.info("아직 출고 이력이 없습니다.")
 
 
 # ══════════════════════════════════════════════════════════

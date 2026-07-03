@@ -6,3 +6,5 @@ opencv-python-headless>=4.8.0
 numpy>=1.23.0
 google-genai>=2.0.0
 ultralytics>=8.0.0
+qrcode[pil]>=7.4.2
+easyocr>=1.7.0
