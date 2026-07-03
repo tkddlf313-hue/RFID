@@ -65,26 +65,27 @@ CATEGORY_LIST = [
     "원재료",
     "부재료(조성)",
     "부재료(가공)",
-    "기자재(조성)",
     "부재료(환경)",
     "기자재(초지)",
+    "기자재(가공)",
     "기자재(완정)",
     "기자재(보전)",
     "기자재(안전)",
 ]
 
 # 더미 데이터 (앱 최초 실행 시 DB가 비어있으면 자동 삽입)
+# (epc, 자재명, 자재번호, 배치코드, 수량, 분류)
 _DUMMY_TAGS = [
-    ("A1B2C3D4E5F60001", "SUS304 판재 2T",      "LOT-2024-001", 150, "원재료"),
-    ("A1B2C3D4E5F60002", "SUS316 환봉 Ø20",     "LOT-2024-002", 80,  "원재료"),
-    ("A1B2C3D4E5F60003", "알루미늄 앵글 40x40",  "LOT-2024-003", 200, "부재료(조성)"),
-    ("A1B2C3D4E5F60004", "SS400 각관 50x50",    "LOT-2024-004", 120, "부재료(가공)"),
-    ("A1B2C3D4E5F60005", "SPCC 냉연코일 1.2T",  "LOT-2024-005", 300, "기자재(조성)"),
-    ("A1B2C3D4E5F60006", "황동봉 Ø15",          "LOT-2024-006", 60,  "부재료(환경)"),
-    ("A1B2C3D4E5F60007", "철판 3.2T",           "LOT-2024-007", 90,  "기자재(초지)"),
-    ("A1B2C3D4E5F60008", "동파이프 Ø25",        "LOT-2024-008", 45,  "기자재(완정)"),
-    ("A1B2C3D4E5F60009", "ABS 플라스틱 판",     "LOT-2024-009", 500, "기자재(보전)"),
-    ("A1B2C3D4E5F60010", "탄소강 볼트 M12",     "LOT-2024-010", 1000,"기자재(안전)"),
+    ("A1B2C3D4E5F60001", "SUS304 판재 2T",      "MAT-001", "LOT-2024-001", 150, "원재료"),
+    ("A1B2C3D4E5F60002", "SUS316 환봉 Ø20",     "MAT-002", "LOT-2024-002", 80,  "원재료"),
+    ("A1B2C3D4E5F60003", "알루미늄 앵글 40x40", "MAT-003", "LOT-2024-003", 200, "부재료(조성)"),
+    ("A1B2C3D4E5F60004", "SS400 각관 50x50",    "MAT-004", "LOT-2024-004", 120, "부재료(가공)"),
+    ("A1B2C3D4E5F60005", "SPCC 냉연코일 1.2T",  "MAT-005", "LOT-2024-005", 300, "부재료(환경)"),
+    ("A1B2C3D4E5F60006", "황동봉 Ø15",          "MAT-006", "LOT-2024-006", 60,  "기자재(초지)"),
+    ("A1B2C3D4E5F60007", "철판 3.2T",           "MAT-007", "LOT-2024-007", 90,  "기자재(가공)"),
+    ("A1B2C3D4E5F60008", "동파이프 Ø25",        "MAT-008", "LOT-2024-008", 45,  "기자재(완정)"),
+    ("A1B2C3D4E5F60009", "ABS 플라스틱 판",     "MAT-009", "LOT-2024-009", 500, "기자재(보전)"),
+    ("A1B2C3D4E5F60010", "탄소강 볼트 M12",     "MAT-010", "LOT-2024-010", 1000,"기자재(안전)"),
 ]
 
 
@@ -99,7 +100,9 @@ def init_db() -> None:
                 quantity    INTEGER DEFAULT 0,
                 issued_at   TEXT NOT NULL,
                 location    TEXT DEFAULT '',
-                category    TEXT DEFAULT '미분류'
+                category    TEXT DEFAULT '미분류',
+                mat_number  TEXT DEFAULT '',
+                batch_code  TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS scan_log (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,14 +111,18 @@ def init_db() -> None:
                 matched     INTEGER DEFAULT 0
             );
         """)
-        # ── 기존 DB 마이그레이션: category 컬럼이 없으면 추가 ──
+        # ── 기존 DB 마이그레이션: 없는 컬럼 추가 ──
         cols = [r[1] for r in conn.execute("PRAGMA table_info(tags)").fetchall()]
         if "category" not in cols:
             conn.execute("ALTER TABLE tags ADD COLUMN category TEXT DEFAULT '미분류'")
+        if "mat_number" not in cols:
+            conn.execute("ALTER TABLE tags ADD COLUMN mat_number TEXT DEFAULT ''")
+        if "batch_code" not in cols:
+            conn.execute("ALTER TABLE tags ADD COLUMN batch_code TEXT DEFAULT ''")
         # ── DB가 비어있으면 더미 데이터 자동 삽입 ──
         if conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0] == 0:
             import datetime as _dt, random as _rnd
-            for epc, name, lot, qty, cat in _DUMMY_TAGS:
+            for epc, name, mat_no, batch, qty, cat in _DUMMY_TAGS:
                 delta = _dt.timedelta(
                     days=_rnd.randint(0, 30),
                     hours=_rnd.randint(8, 17),
@@ -123,8 +130,8 @@ def init_db() -> None:
                 )
                 issued = (_dt.datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
                 conn.execute(
-                    "INSERT OR IGNORE INTO tags VALUES (?,?,?,?,?,?,?)",
-                    (epc, name, lot, qty, issued, f"A-{_rnd.randint(1,5)}-{_rnd.randint(1,10):02d}", cat),
+                    "INSERT OR IGNORE INTO tags(tag_id,item_name,lot_number,quantity,issued_at,location,category,mat_number,batch_code) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (epc, name, batch, qty, issued, f"A-{_rnd.randint(1,5)}-{_rnd.randint(1,10):02d}", cat, mat_no, batch),
                 )
 
 
@@ -381,12 +388,13 @@ def write_epc_to_reader(epc: str) -> bool:
 # ══════════════════════════════════════════════════════════
 # DB 조작 함수
 # ══════════════════════════════════════════════════════════
-def db_issue_tag(tag_id: str, item_name: str, lot_number: str, quantity: int, category: str = "미분류") -> None:
+def db_issue_tag(tag_id: str, item_name: str, lot_number: str, quantity: int,
+                 category: str = "미분류", mat_number: str = "", batch_code: str = "") -> None:
     """태그 발행 — 이미 존재하면 덮어씀"""
     with get_db() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO tags VALUES (?,?,?,?,?,?,?)",
-            (tag_id, item_name, lot_number, quantity, now_str(), "", category),
+            "INSERT OR REPLACE INTO tags(tag_id,item_name,lot_number,quantity,issued_at,location,category,mat_number,batch_code) VALUES (?,?,?,?,?,?,?,?,?)",
+            (tag_id, item_name, lot_number, quantity, now_str(), "", category, mat_number, batch_code),
         )
 
 
@@ -451,15 +459,17 @@ def process_scan(epc: str, source: str = "리더기") -> None:
     db_log_scan(epc, matched)
 
     st.session_state["scan_session"].append({
-        "tag_id":    epc,
-        "category":  tag["category"] if matched else "-",
-        "item_name": tag["item_name"] if matched else "❓ 미등록",
+        "tag_id":     epc,
+        "category":   tag["category"]   if matched else "-",
+        "mat_number": tag.get("mat_number", "") if matched else "-",
+        "item_name":  tag["item_name"]  if matched else "❓ 미등록",
+        "batch_code": tag.get("batch_code", "") if matched else "-",
         "lot_number": tag["lot_number"] if matched else "-",
-        "quantity":  tag["quantity"] if matched else 0,
-        "issued_at": tag["issued_at"] if matched else "-",
+        "quantity":   tag["quantity"]   if matched else 0,
+        "issued_at":  tag["issued_at"]  if matched else "-",
         "scanned_at": now_str(),
-        "matched":   "✅ 매칭" if matched else "⚠️ 미등록",
-        "source":    source,
+        "matched":    "✅ 매칭" if matched else "⚠️ 미등록",
+        "source":     source,
     })
     st.session_state["last_rfid"] = epc
     log(f"[SCAN] {epc} → {'매칭' if matched else '미등록'} ({source})")
@@ -666,7 +676,7 @@ def generate_excel(rows: list[dict]) -> bytes:
     align_l = Alignment(horizontal="left",   vertical="center", wrap_text=False)
 
     # ── 헤더 행 ────────────────────────────────
-    headers = ["No.", "자재 분류", "RFID 태그 ID", "품명", "Lot 번호", "수량(EA)", "입고일시", "스캔일시", "매칭 상태"]
+    headers = ["No.", "자재 분류", "자재번호", "자재명", "배치코드", "수량(EA)", "입고일시", "스캔일시", "매칭 상태"]
     CENTER_COLS = {1, 2, 3, 5, 6, 7, 8, 9}  # 가운데 정렬 열 번호
 
     ws.append(headers)
@@ -678,14 +688,14 @@ def generate_excel(rows: list[dict]) -> bytes:
         cell.border    = bdr_hdr
         cell.alignment = align_c
 
-    # ── 데이터 행 ──────────────────────────────
+    # ── 데이터 행 ──────────────────────────────────────────────────
     for row_idx, row in enumerate(rows, 1):
         vals = [
             row_idx,
             row.get("category", "-"),
-            row["tag_id"],
+            row.get("mat_number", "-"),
             row["item_name"],
-            row["lot_number"],
+            row.get("batch_code", row.get("lot_number", "-")),
             row["quantity"],
             row["issued_at"],
             row["scanned_at"],
@@ -839,11 +849,16 @@ with tab1:
     st.info("① 품명·Lot·수량 입력  →  ② USB 리더기 위에 빈 태그 올려둠  →  ③ 태그 발행 클릭")
 
     with st.form("form_issue"):
-        c0, c1, c2, c3 = st.columns([1.2, 1.5, 1.2, 0.8])
-        category   = c0.selectbox("자재 분류 *", CATEGORY_LIST)
-        item_name  = c1.text_input("품명 *",      placeholder="예: SUS304 판재 2T")
-        lot_number = c2.text_input("Lot 번호 *",  placeholder="예: LOT-2024-001")
-        quantity   = c3.number_input("수량 (EA)", min_value=0, value=0)
+        # 1행: 자재 분류 / 자재번호 / 자재명
+        r1c1, r1c2, r1c3 = st.columns([1.2, 1.2, 1.5])
+        category   = r1c1.selectbox("자재 분류 *", CATEGORY_LIST)
+        mat_number = r1c2.text_input("자재번호", placeholder="예: MAT-001")
+        item_name  = r1c3.text_input("자재명 *", placeholder="예: SUS304 판재 2T")
+
+        # 2행: 배치코드 / 수량
+        r2c1, r2c2 = st.columns([2, 1])
+        batch_code = r2c1.text_input("배치코드", placeholder="예: LOT-2024-001")
+        quantity   = r2c2.number_input("수량 (EA)", min_value=0, value=0)
 
         epc_mode   = st.radio("EPC 생성 방식", ["자동 생성 (UUID)", "직접 입력"], horizontal=True)
         manual_epc = ""
@@ -853,8 +868,8 @@ with tab1:
         submitted = st.form_submit_button("📌 태그 발행", use_container_width=True, type="primary")
 
     if submitted:
-        if not item_name.strip() or not lot_number.strip():
-            st.error("품명과 Lot 번호는 필수입니다.")
+        if not item_name.strip():
+            st.error("자재명은 필수입니다.")
         else:
             is_valid = True
             if epc_mode == "직접 입력":
@@ -872,17 +887,18 @@ with tab1:
                 if st.session_state["connected"] and conn_type == "시리얼 (COM)":
                     write_ok = write_epc_to_reader(epc)
 
-                db_issue_tag(epc, item_name.strip(), lot_number.strip(), quantity, category)
-                log(f"[ISSUE] {epc} / [{category}] {item_name} / {lot_number} / {quantity}EA")
+                db_issue_tag(epc, item_name.strip(), batch_code.strip(), quantity, category, mat_number.strip(), batch_code.strip())
+                log(f"[ISSUE] {epc} / [{category}] {mat_number} {item_name} / {batch_code} / {quantity}EA")
 
                 st.success("태그 발행 완료!")
                 st.code(
-                    f"EPC    : {epc}\n"
-                    f"분류   : {category}\n"
-                    f"품명   : {item_name}\n"
-                    f"Lot    : {lot_number}\n"
-                    f"수량   : {quantity} EA\n"
-                    f"발행일 : {now_str()}"
+                    f"EPC      : {epc}\n"
+                    f"분류     : {category}\n"
+                    f"자재번호 : {mat_number}\n"
+                    f"자재명   : {item_name}\n"
+                    f"배치코드 : {batch_code}\n"
+                    f"수량     : {quantity} EA\n"
+                    f"발행일   : {now_str()}"
                 )
                 if st.session_state["connected"]:
                     if write_ok:
@@ -896,8 +912,14 @@ with tab1:
     st.markdown("#### 📋 발행된 태그 전체 목록")
     all_tags = db_all_tags()
     if all_tags:
-        df_tags = pd.DataFrame(all_tags)[["category", "tag_id", "item_name", "lot_number", "quantity", "issued_at", "location"]]
-        df_tags.columns = ["자재 분류", "태그 ID", "품명", "Lot 번호", "수량", "발행일시", "위치"]
+        _cols = [c for c in ["category", "mat_number", "item_name", "batch_code", "quantity", "issued_at", "location"] if c in all_tags[0]]
+        df_tags = pd.DataFrame(all_tags)[_cols]
+        _col_names = {
+            "category": "자재 분류", "mat_number": "자재번호",
+            "item_name": "자재명", "batch_code": "배치코드",
+            "quantity": "수량", "issued_at": "발행일시", "location": "위치"
+        }
+        df_tags.columns = [_col_names[c] for c in _cols]
         st.dataframe(df_tags, use_container_width=True, hide_index=True)
         st.caption(f"총 {len(all_tags)}건 등록됨")
     else:
