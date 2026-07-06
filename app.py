@@ -963,32 +963,93 @@ with tab1:
                 log(f"[ISSUE] {epc} / [{category}] {mat_number} {item_name} / {batch_code} / {location} / {quantity}EA")
 
                 st.success("태그 발행 완료!")
-                # ── 태그 정보 + QR 코드 나란히 표시 ──
-                _info_col, _qr_col = st.columns([2, 1])
-                with _info_col:
-                    st.code(
-                        f"EPC      : {epc}\n"
-                        f"분류     : {category}\n"
-                        f"자재번호 : {mat_number}\n"
-                        f"자재명   : {item_name}\n"
-                        f"배치코드 : {batch_code}\n"
-                        f"저장위치 : {location}\n"
-                        f"수량     : {quantity} EA\n"
-                        f"발행일   : {now_str()}"
+                # ── 인쇄 가능한 라벨 렌더링 ──
+                _qr_bytes = gen_qr_image(epc)
+                _qr_b64 = base64.b64encode(_qr_bytes).decode() if _qr_bytes else ""
+                _issued_str = now_str()
+                _label_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Malgun Gothic', 'NanumGothic', sans-serif;
+          padding: 12px; background: #f8f9fa; }}
+  .label {{
+    display: flex; gap: 14px; align-items: flex-start;
+    border: 2.5px solid #1B365D; border-radius: 10px;
+    padding: 14px 16px; background: #fff;
+    max-width: 420px; margin: 0 auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  }}
+  .info {{ flex: 1; }}
+  .info .title {{
+    font-size: 12px; font-weight: bold; color: #1B365D;
+    border-bottom: 1.5px solid #2E5FA3; padding-bottom: 5px; margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }}
+  .info table {{ width: 100%; border-collapse: collapse; }}
+  .info td {{ padding: 3px 4px; font-size: 11px; vertical-align: top; }}
+  .info td.lbl {{ color: #555; font-weight: bold; width: 62px; white-space: nowrap; }}
+  .info td.val {{ color: #111; word-break: break-all; }}
+  .info .epc {{
+    margin-top: 8px; font-size: 9px; color: #888;
+    word-break: break-all; line-height: 1.3;
+    border-top: 1px dashed #ccc; padding-top: 5px;
+  }}
+  .qr-box {{ text-align: center; flex-shrink: 0; }}
+  .qr-box img {{ width: 110px; height: 110px; display: block; }}
+  .qr-box .qr-cap {{ font-size: 9px; color: #888; margin-top: 3px; }}
+  .print-btn {{
+    display: block; width: 420px; max-width: 100%;
+    margin: 12px auto 0; padding: 9px 0;
+    background: #1B365D; color: #fff; border: none;
+    border-radius: 7px; cursor: pointer;
+    font-size: 14px; font-family: inherit; font-weight: bold;
+    letter-spacing: 0.5px; transition: background 0.2s;
+  }}
+  .print-btn:hover {{ background: #2E5FA3; }}
+  @media print {{
+    body {{ background: white; padding: 0; }}
+    .print-btn {{ display: none !important; }}
+    .label {{ box-shadow: none; border: 2px solid #000;
+              max-width: 100%; border-radius: 0; }}
+  }}
+</style>
+</head>
+<body>
+<div class="label">
+  <div class="info">
+    <div class="title">📦 RFID 자재 태그 라벨</div>
+    <table>
+      <tr><td class="lbl">자재 분류</td><td class="val">{category}</td></tr>
+      <tr><td class="lbl">자재번호</td><td class="val">{mat_number or "-"}</td></tr>
+      <tr><td class="lbl">자재명</td><td class="val">{item_name}</td></tr>
+      <tr><td class="lbl">배치코드</td><td class="val">{batch_code or "-"}</td></tr>
+      <tr><td class="lbl">저장위치</td><td class="val">{location or "-"}</td></tr>
+      <tr><td class="lbl">수량</td><td class="val">{quantity} EA</td></tr>
+      <tr><td class="lbl">발행일시</td><td class="val">{_issued_str}</td></tr>
+    </table>
+    <div class="epc">EPC: {epc}</div>
+  </div>
+  <div class="qr-box">
+    {"<img src='data:image/png;base64," + _qr_b64 + "' alt='QR'>" if _qr_b64 else "<div style='width:110px;height:110px;border:1px dashed #ccc;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa;'>QR없음</div>"}
+    <div class="qr-cap">출고 스캔용</div>
+  </div>
+</div>
+<button class="print-btn" onclick="window.print()">🖨️ 라벨 인쇄</button>
+</body>
+</html>"""
+                st.components.v1.html(_label_html, height=240, scrolling=False)
+                # 다운로드 버튼도 유지
+                if _qr_bytes:
+                    st.download_button(
+                        "⬇️ QR 이미지만 저장 (.png)",
+                        data=_qr_bytes,
+                        file_name=f"QR_{epc[:8]}.png",
+                        mime="image/png",
                     )
-                with _qr_col:
-                    _qr_bytes = gen_qr_image(epc)
-                    if _qr_bytes:
-                        st.image(_qr_bytes, caption="출고용 QR코드", use_container_width=True)
-                        st.download_button(
-                            "⬇️ QR 이미지 저장",
-                            data=_qr_bytes,
-                            file_name=f"QR_{epc[:8]}.png",
-                            mime="image/png",
-                            use_container_width=True,
-                        )
-                    else:
-                        st.caption("QR 생성 불가 (qrcode 라이브러리 필요)")
                 if st.session_state["connected"]:
                     if write_ok:
                         st.info("📡 리더기를 통해 태그에 EPC 기록 완료")
