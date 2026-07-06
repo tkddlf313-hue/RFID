@@ -1557,6 +1557,7 @@ with tab3:
             ocr_engine = st.radio(
                 "사용할 OCR 엔진 선택",
                 ["EasyOCR (로컬·무료)", "Gemini 2.5 Flash (AI 분석)"],
+                index=1,
                 horizontal=True,
                 key="ocr_engine_choice"
             )
@@ -1748,13 +1749,15 @@ with tab5:
     st.markdown("#### 🤖 물체 감지 & 수량 카운팅 — YOLO vs Gemini")
     st.info(
         "촬영하거나 업로드한 사진을 분석하여 물품의 수량을 카운팅합니다.  \n"
-        "**YOLO(로컬)** 또는 **Gemini 2.5 Flash(AI 분석)** 엔진 중 선택할 수 있습니다."
+        "YOLO(로컬) 또는 Gemini 2.5 Flash(AI 분석) 엔진 중 선택할 수 있습니다.  \n"
+        "💡 **Gemini**는 사전 학습 없이 이미지 속 물품을 실시간으로 감지하고 상자를 그려 물체 위치를 나타냅니다."
     )
 
     # ── 엔진 및 옵션 선택 ────────────────────────
     engine_choice = st.radio(
         "감지 엔진 선택",
         ["YOLO (로컬 모델)", "Gemini 2.5 Flash (AI 분석)"],
+        index=1,
         horizontal=True,
         key="yolo_engine_choice"
     )
@@ -1784,16 +1787,23 @@ with tab5:
             st.caption(f"⚠️ 로컬 모델 없음 — 첫 실행 시 자동 다운로드됩니다 (`{local_pt}`에 복사하면 오프라인 사용 가능)")
     
     else:  # Gemini 2.5 Flash
-        target_cls = op1.text_input(
-            "감지 및 카운팅할 물체 입력 *",
-            value="상자",
-            help="예: 상자, 제품, 컵, 볼트 등"
+        selected_obj = op1.selectbox(
+            "감지 및 카운팅할 물체 선택 *",
+            ["Roll", "상자 (Box)", "제품 (Product)", "직접 입력"],
+            index=0,
+            help="감지하고자 하는 물체 유형을 선택하거나 직접 입력하세요."
         )
-        if gemini_api_keys:
-            op2.success(f"API 키 확인됨 ✔ ({len(gemini_api_keys)}개)")
+        if selected_obj == "직접 입력":
+            target_cls = op1.text_input(
+                "물체명 입력 *",
+                value="롤",
+                help="예: 컵, 볼트, 철판 등"
+            )
         else:
+            target_cls = selected_obj
+            
+        if not gemini_api_keys:
             op2.error("사이드바에서 API 키를 입력해 주세요.")
-        op3.caption("Gemini는 사전 학습 없이 이미지 속 물품을 실시간으로 감지하고 상자를 그려줍니다.")
 
     st.markdown("---")
 
