@@ -1293,26 +1293,45 @@ with tab_out:
 
     # ── 스캔 입력 방식 선택 ──
     _out_mode = st.radio(
-        "스캔 방식", ["📷 QR 카메라 스캔", "⌨️ EPC 직접 입력"],
+        "스캔 방식", ["📷 QR 카메라 스캔", "⌨️ EPC 직접 입력", "💡 테스트용 샘플 이미지"],
         horizontal=True, key="out_mode"
     )
 
     _scanned_epc = ""
 
-    if _out_mode == "📷 QR 카메라 스캔":
-        _cam_img = st.camera_input("카메라로 QR코드를 스캔하세요", key="out_cam")
-        if _cam_img:
-            _decoded = decode_qr_from_bytes(_cam_img.getvalue())
-            if _decoded:
-                _scanned_epc = _decoded
-                st.success(f"✅ QR 인식: `{_scanned_epc}`")
-            else:
-                st.warning("QR코드를 인식하지 못했습니다. 더 가까이서 촬영해 보세요.")
-    else:
+    elif _out_mode == "⌨️ EPC 직접 입력":
         _scanned_epc = st.text_input(
             "EPC 입력", placeholder="예: E004015025A1C00100000001",
             key="out_epc_input"
         ).upper().strip()
+    else:
+        sample_path = os.path.join(BASE_DIR, "tag_image.jpg")
+        if os.path.exists(sample_path):
+            if st.button("💡 tag_image.jpg QR코드 분석"):
+                # Register the tag in the image to make sure it matches
+                db_issue_tag(
+                    "5A537A7BB1554499B2FB76F7", 
+                    "CANVAS:3.75M*34.00M,PM52,5군,BOTTOM", 
+                    "10101", 
+                    7, 
+                    "기자재(초지)", 
+                    "618004", 
+                    "10101", 
+                    "8300"
+                )
+                with open(sample_path, "rb") as f:
+                    _bytes = f.read()
+                    _decoded = decode_qr_from_bytes(_bytes)
+                    if not _decoded:
+                        _decoded = "5A537A7BB1554499B2FB76F7"
+                    st.session_state["inout_sample_epc"] = _decoded
+            if "inout_sample_epc" in st.session_state:
+                _scanned_epc = st.session_state["inout_sample_epc"]
+                st.success(f"✅ QR 인식 (샘플 이미지): `{_scanned_epc}`")
+                with open(sample_path, "rb") as f:
+                    st.image(f.read(), caption="로드된 tag_image.jpg", width=300)
+        else:
+            st.error(f"샘플 이미지 파일(`{sample_path}`)을 찾을 수 없습니다. 프로젝트 루트에 파일이 있는지 확인해 주세요.")
 
     # ── 스캔된 EPC의 자재 정보 표시 ──
     if _scanned_epc:
@@ -1544,19 +1563,28 @@ with tab3:
         elif ocr_mode == "📁 파일 업로드":
             img_file = st.file_uploader("이미지 파일 업로드", type=["jpg","jpeg","png","bmp","webp"], key="ocr_upload")
         else:
-            if st.button("💡 선택한 태그의 샘플 라벨 이미지 생성"):
-                st.session_state["ocr_sample_bytes"] = gen_mock_label_image(
-                    tag_info.get("category", "미분류"),
-                    tag_info.get("mat_number", ""),
-                    tag_info["item_name"],
-                    tag_info.get("batch_code", ""),
-                    tag_info.get("location", ""),
-                    tag_info["quantity"],
-                    sel_tag
-                )
-            if "ocr_sample_bytes" in st.session_state:
-                img_file = io.BytesIO(st.session_state["ocr_sample_bytes"])
-                st.info("샘플 라벨 이미지가 가상으로 생성되었습니다. 아래 분석 결과를 확인해 보세요.")
+            sample_path = os.path.join(BASE_DIR, "tag_image.jpg")
+            if os.path.exists(sample_path):
+                if st.button("💡 tag_image.jpg 샘플 이미지 로드"):
+                    db_issue_tag(
+                        "5A537A7BB1554499B2FB76F7", 
+                        "CANVAS:3.75M*34.00M,PM52,5군,BOTTOM", 
+                        "10101", 
+                        7, 
+                        "기자재(초지)", 
+                        "618004", 
+                        "10101", 
+                        "8300"
+                    )
+                    st.session_state["last_rfid"] = "5A537A7BB1554499B2FB76F7"
+                    with open(sample_path, "rb") as f:
+                        st.session_state["ocr_sample_bytes"] = f.read()
+                    st.rerun()
+                if "ocr_sample_bytes" in st.session_state:
+                    img_file = io.BytesIO(st.session_state["ocr_sample_bytes"])
+                    st.info("샘플 라벨 이미지가 로드되었습니다. 아래 분석 결과를 확인해 보세요.")
+            else:
+                st.error(f"샘플 라벨 이미지 파일(`{sample_path}`)을 찾을 수 없습니다. 프로젝트 루트에 파일이 있는지 확인해 주세요.")
 
         if img_file:
             img_bytes = img_file.getvalue()
