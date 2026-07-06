@@ -34,10 +34,11 @@ from google import genai
 from google.genai import types
 try:
     import qrcode
-    from PIL import Image as _PIL_Image
+    from PIL import Image as _PIL_Image, ImageDraw, ImageFont
     _QR_AVAILABLE = True
 except ImportError:
     _QR_AVAILABLE = False
+
 
 
 # ══════════════════════════════════════════════════════════
@@ -607,6 +608,67 @@ def decode_qr_from_bytes(img_bytes: bytes) -> str | None:
     detector = cv2.QRCodeDetector()
     data, _, _ = detector.detectAndDecode(img)
     return data.strip() if data else None
+
+
+def gen_mock_label_image(cat, mat, name, batch, loc, qty, epc) -> bytes:
+    """선택한 태그 정보를 기반으로 가상의 라벨 이미지(JPEG) 생성"""
+    img = _PIL_Image.new("RGB", (600, 360), color="#FFFFFF")
+    draw = ImageDraw.Draw(img)
+    
+    # Draw border
+    draw.rectangle([10, 10, 590, 350], outline="#1B365D", width=3)
+    
+    # Try loading a Korean font
+    font_title = None
+    font_body = None
+    font_paths = [
+        "C:/Windows/Fonts/malgun.ttf",                     # Windows
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",  # Linux (Streamlit Cloud default Korean)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"   # Linux fallback
+    ]
+    for p in font_paths:
+        if os.path.exists(p):
+            try:
+                font_title = ImageFont.truetype(p, 20)
+                font_body = ImageFont.truetype(p, 15)
+                break
+            except Exception:
+                pass
+    if font_title is None:
+        try:
+            font_title = ImageFont.load_default()
+            font_body = ImageFont.load_default()
+        except Exception:
+            font_title = None
+            font_body = None
+        
+    # Draw text
+    draw.text((30, 30), "📦 RFID 자재 태그 라벨 (OCR 테스트용)", fill="#1B365D", font=font_title)
+    draw.line([30, 60, 570, 60], fill="#2E5FA3", width=2)
+    
+    y = 80
+    lines = [
+        f"자재 분류  {cat}",
+        f"자재번호   {mat or '-'}",
+        f"자재명     {name}",
+        f"배치코드   {batch or '-'}",
+        f"저장위치   {loc or '-'}",
+        f"수량       {qty} EA",
+        f"발행일시   {now_str()}"
+    ]
+    for line in lines:
+        draw.text((30, y), line, fill="#222222", font=font_body)
+        y += 28
+        
+    draw.text((30, y+10), f"EPC: {epc}", fill="#777777", font=font_body)
+        
+    # Draw a mock barcode or QR placeholder
+    draw.rectangle([450, 90, 550, 190], fill="#333333")
+    draw.text((455, 200), "출고 스캔용", fill="#333333", font=font_body)
+    
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
 
 
 # ══════════════════════════════════════════════════════════
@@ -1456,14 +1518,29 @@ with tab3:
 
         # 이미지 입력 방식 선택
         ocr_mode = st.radio(
-            "이미지 입력 방식", ["📷 카메라 촬영", "📁 파일 업로드"],
+            "이미지 입력 방식", ["📷 카메라 촬영", "📁 파일 업로드", "💡 테스트용 샘플 이미지"],
             horizontal=True, key="ocr_input_mode"
         )
-        img_file = (
-            st.camera_input("자재 라벨을 촬영해주세요")
-            if ocr_mode == "📷 카메라 촬영"
-            else st.file_uploader("이미지 파일 업로드", type=["jpg","jpeg","png","bmp","webp"], key="ocr_upload")
-        )
+        
+        img_file = None
+        if ocr_mode == "📷 카메라 촬영":
+            img_file = st.camera_input("자재 라벨을 촬영해주세요")
+        elif ocr_mode == "📁 파일 업로드":
+            img_file = st.file_uploader("이미지 파일 업로드", type=["jpg","jpeg","png","bmp","webp"], key="ocr_upload")
+        else:
+            if st.button("💡 선택한 태그의 샘플 라벨 이미지 생성"):
+                st.session_state["ocr_sample_bytes"] = gen_mock_label_image(
+                    tag_info.get("category", "미분류"),
+                    tag_info.get("mat_number", ""),
+                    tag_info["item_name"],
+                    tag_info.get("batch_code", ""),
+                    tag_info.get("location", ""),
+                    tag_info["quantity"],
+                    sel_tag
+                )
+            if "ocr_sample_bytes" in st.session_state:
+                img_file = io.BytesIO(st.session_state["ocr_sample_bytes"])
+                st.info("샘플 라벨 이미지가 가상으로 생성되었습니다. 아래 분석 결과를 확인해 보세요.")
 
         if img_file:
             img_bytes = img_file.getvalue()
@@ -1666,14 +1743,26 @@ with tab5:
 
     # ── 이미지 입력 ─────────────────────────────
     yolo_mode = st.radio(
-        "이미지 입력 방식", ["📷 카메라 촬영", "📁 파일 업로드"],
+        "이미지 입력 방식", ["📷 카메라 촬영", "📁 파일 업로드", "💡 테스트용 샘플 이미지"],
         horizontal=True, key="yolo_input_mode"
     )
-    img_file_yolo = (
-        st.camera_input("자재를 촬영해주세요", key="yolo_cam")
-        if yolo_mode == "📷 카메라 촬영"
-        else st.file_uploader("이미지 업로드", type=["jpg","jpeg","png","bmp","webp"], key="yolo_upload")
-    )
+    
+    img_file_yolo = None
+    if yolo_mode == "📷 카메라 촬영":
+        img_file_yolo = st.camera_input("자재를 촬영해주세요", key="yolo_cam")
+    elif yolo_mode == "📁 파일 업로드":
+        img_file_yolo = st.file_uploader("이미지 업로드", type=["jpg","jpeg","png","bmp","webp"], key="yolo_upload")
+    else:
+        sample_path = os.path.join(BASE_DIR, "Roll images.jpg")
+        if os.path.exists(sample_path):
+            if st.button("💡 Roll images.jpg 샘플 로드"):
+                with open(sample_path, "rb") as f:
+                    st.session_state["yolo_sample_bytes"] = f.read()
+            if "yolo_sample_bytes" in st.session_state:
+                img_file_yolo = io.BytesIO(st.session_state["yolo_sample_bytes"])
+                st.info("샘플 롤 이미지가 로드되었습니다. 아래 분석 결과를 확인해 보세요.")
+        else:
+            st.error(f"샘플 롤 이미지 파일(`{sample_path}`)을 찾을 수 없습니다. 프로젝트 루트에 파일이 있는지 확인해 주세요.")
 
     if img_file_yolo:
         img_bytes_yolo = img_file_yolo.getvalue()
