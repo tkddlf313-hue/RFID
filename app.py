@@ -1009,19 +1009,35 @@ with st.sidebar:
         if val and "YOUR_GEMINI_API_KEY_HERE" not in val:
             default_key = val
 
-    gemini_api_key_input = st.text_input(
-        "API Key",
-        type="password",
-        value=default_key,
-        placeholder="여러 개인 경우 쉼표(,)나 공백으로 구분해 입력",
-        help="Google AI Studio에서 무료 발급받은 키를 여러 개 입력 시 한 키가 한도 초과되면 다음 키로 자동 전환됩니다.",
-    )
-    gemini_api_keys = get_gemini_keys(gemini_api_key_input)
-    
-    if gemini_api_keys:
-        st.success(f"API 키 ✔ ({len(gemini_api_keys)}개 활성화됨)")
+    # 세션 상태로 API 키 입력란 노출 여부 제어
+    if "show_api_input" not in st.session_state:
+        st.session_state["show_api_input"] = False
+
+    gemini_api_keys = []
+    if default_key and not st.session_state["show_api_input"]:
+        gemini_api_keys = get_gemini_keys(default_key)
+        st.success("API 키 ✔ (시스템 자동 활성화됨)")
+        if st.button("🔑 API 키 수동 변경"):
+            st.session_state["show_api_input"] = True
+            st.rerun()
     else:
-        st.caption("키 없음 — Gemini 컬럼 비활성 ( secrets.toml 설정 가능 )")
+        gemini_api_key_input = st.text_input(
+            "API Key",
+            type="password",
+            value=default_key,
+            placeholder="여러 개인 경우 쉼표(,)나 공백으로 구분해 입력",
+            help="Google AI Studio에서 무료 발급받은 키를 여러 개 입력 시 한 키가 한도 초과되면 다음 키로 자동 전환됩니다.",
+        )
+        gemini_api_keys = get_gemini_keys(gemini_api_key_input)
+        
+        if gemini_api_keys:
+            st.success(f"API 키 ✔ ({len(gemini_api_keys)}개 활성화됨)")
+            if default_key:
+                if st.button("🔒 입력창 숨기기"):
+                    st.session_state["show_api_input"] = False
+                    st.rerun()
+        else:
+            st.caption("키 없음 — Gemini 컬럼 비활성 ( secrets.toml 설정 가능 )")
 
     st.divider()
 
