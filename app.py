@@ -230,26 +230,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 맥킨지 스타일의 요약 박스 (Executive Summary)
-st.markdown(
-    """
-    <div style='background-color:#F0F4F8; border-left:5px solid #1B365D; padding:12px 18px; border-radius:4px; margin-bottom:1.5rem;'>
-        <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
-            <span style='font-size:11px; font-weight:bold; color:#1B365D; text-transform:uppercase; letter-spacing:1px;'>Executive Summary</span>
-            <span style='font-size:11px; color:#555; font-weight:555;'>한솔제지 천안공장</span>
+# 맥킨지 스타일의 요약 박스 (Executive Summary) - 접고 펼 수 있는 형태
+with st.expander("📝 Executive Summary — 스마트 창고 관리 플랫폼", expanded=True):
+    st.markdown(
+        """
+        <div style='background-color:#F0F4F8; border-left:5px solid #1B365D; padding:12px 18px; border-radius:4px;'>
+            <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
+                <span style='font-size:11px; font-weight:bold; color:#1B365D; text-transform:uppercase; letter-spacing:1px;'>Executive Summary</span>
+                <span style='font-size:11px; color:#555; font-weight:555;'>한솔제지 천안공장</span>
+            </div>
+            <div style='font-size:14px; font-weight:bold; color:#111; margin-bottom:6px;'>UHF RFID와 QR코드를 결합한 하이브리드 스마트 창고 관리 플랫폼</div>
+            <div style='font-size:12.5px; color:#333; line-height:1.6;'>
+                • <b>현장의 문제 해결</b>: 원부재료, 기자재의 수작업 재고조사 한계 및 선입선출 추적 오류 해결<br/>
+                • <b>하이브리드 프로세스</b>: <u>입고/재고조사</u>는 대용량 무선 RFID로, <u>입/출고 기록</u>은 스마트폰 카메라 QR 스캔으로 처리하여 비용 및 작업 편의성 최적화<br/>
+                • <b>기대 효과</b>:<br/>
+                &nbsp;&nbsp;1. 창고 실시간 전수 재고조사 시간 90% 이상 단축 및 선입선출 오류 제로화 달성<br/>
+                &nbsp;&nbsp;2. 고가 부재료(Felt, Canvas 등)의 선입선출(FIFO) 엄수를 통한 자재 사용 수명 극대화 및 안전 재고 최적화로 창고 운전자본 효율성 대폭 증가
+            </div>
         </div>
-        <div style='font-size:14px; font-weight:bold; color:#111; margin-bottom:6px;'>UHF RFID와 QR코드를 결합한 하이브리드 스마트 창고 관리 플랫폼</div>
-        <div style='font-size:12.5px; color:#333; line-height:1.6;'>
-            • <b>현장의 문제 해결</b>: 원부재료, 기자재의 수작업 재고조사 한계 및 선입선출 추적 오류 해결<br/>
-            • <b>하이브리드 프로세스</b>: <u>입고/재고조사</u>는 대용량 무선 RFID로, <u>입/출고 기록</u>은 스마트폰 카메라 QR 스캔으로 처리하여 비용 및 작업 편의성 최적화<br/>
-            • <b>기대 효과</b>:<br/>
-            &nbsp;&nbsp;1. 창고 실시간 전수 재고조사 시간 90% 이상 단축 및 선입선출 오류 제로화 달성<br/>
-            &nbsp;&nbsp;2. 고가 부재료(Felt, Canvas 등)의 선입선출(FIFO) 엄수를 통한 자재 사용 수명 극대화 및 안전 재고 최적화로 창고 운전자본 효율성 대폭 증가
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ══════════════════════════════════════════════════════════
@@ -976,17 +977,41 @@ def generate_excel(rows: list[dict]) -> bytes:
 # 사이드바 — 연결 설정 및 Gemini API 키
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
-    st.header("⚙️ 시스템 설정")
+    # ── 1. RFID 리더기 연결 설정 (맨 위로 이동) ──
+    st.subheader("📡 RFID 리더기")
+    conn_type = st.radio("통신 방식", ["시리얼 (COM)", "TCP/IP"], key="conn_type")
 
-    # 클라우드 배포 제약 사항 안내 경고창
-    st.info(
-        "📡 **RFID 리더기 연결 안내**\\n\\n"
-        "대부분의 기능(태그 발행, 모의 스캔, OCR, YOLO, 엑셀 출력 등)은 클라우드에서도 정상 작동합니다.\\n\\n"
-        "단, **USB/시리얼(COM 포트) 방식의 리더기**는 로컬 PC에서만 연결 가능합니다. "
-        "클라우드에서는 **TCP/IP 방식** 또는 **모의 스캔(시뮬레이션)**을 사용하세요."
-    )
+    if conn_type == "시리얼 (COM)":
+        ports    = [p.device for p in serial.tools.list_ports.comports()] or ["(포트 없음)"]
+        port_sel = st.selectbox("COM 포트", ports)
+        baud_sel = st.selectbox("Baudrate", [9600, 19200, 38400, 57600, 115200], index=4)
+    else:
+        tcp_host = st.text_input("IP 주소", "192.168.1.100")
+        tcp_port = st.number_input("포트", value=6000, min_value=1, max_value=65535)
 
-    # Gemini API 키 입력
+    st.divider()
+
+    # 연결 / 해제 버튼
+    if not st.session_state["connected"]:
+        if st.button("🔌 리더기 연결", use_container_width=True, type="primary"):
+            ok = (connect_serial(port_sel, baud_sel)
+                  if conn_type == "시리얼 (COM)"
+                  else connect_tcp(tcp_host, int(tcp_port)))
+            if ok:
+                st.rerun()
+            else:
+                st.error("연결 실패 — 하단 로그 확인")
+    else:
+        st.success("✅ 리더기 연결됨")
+        if st.session_state["last_rfid"]:
+            st.caption(f"최근 태그  \n`{st.session_state['last_rfid']}`")
+        if st.button("⛔ 연결 해제", use_container_width=True):
+            disconnect()
+            st.rerun()
+
+    st.divider()
+
+    # ── 2. Gemini OCR 설정 ──
     st.subheader("🤖 Gemini OCR")
     
     # st.secrets 또는 환경변수에서 API 키 자동 로드
@@ -1041,39 +1066,17 @@ with st.sidebar:
 
     st.divider()
 
-    # RFID 리더기 연결 설정
-    st.subheader("📡 RFID 리더기")
-    conn_type = st.radio("통신 방식", ["시리얼 (COM)", "TCP/IP"], key="conn_type")
+    # ── 3. 시스템 설정 (맨 밑으로 이동) ──
+    st.subheader("⚙️ 시스템 설정")
 
-    if conn_type == "시리얼 (COM)":
-        ports    = [p.device for p in serial.tools.list_ports.comports()] or ["(포트 없음)"]
-        port_sel = st.selectbox("COM 포트", ports)
-        baud_sel = st.selectbox("Baudrate", [9600, 19200, 38400, 57600, 115200], index=4)
-    else:
-        tcp_host = st.text_input("IP 주소", "192.168.1.100")
-        tcp_port = st.number_input("포트", value=6000, min_value=1, max_value=65535)
+    # 클라우드 배포 제약 사항 안내 경고창
+    st.info(
+        "📡 **RFID 리더기 연결 안내**\n\n"
+        "대부분의 기능(태그 발행, 모의 스캔, OCR, YOLO, 엑셀 출력 등)은 클라우드에서도 정상 작동합니다.\n\n"
+        "단, **USB/시리얼(COM 포트) 방식의 리더기**는 로컬 PC에서만 연결 가능합니다. "
+        "클라우드에서는 **TCP/IP 방식** 또는 **모의 스캔(시뮬레이션)**을 사용하세요."
+    )
 
-    st.divider()
-
-    # 연결 / 해제 버튼
-    if not st.session_state["connected"]:
-        if st.button("🔌 리더기 연결", use_container_width=True, type="primary"):
-            ok = (connect_serial(port_sel, baud_sel)
-                  if conn_type == "시리얼 (COM)"
-                  else connect_tcp(tcp_host, int(tcp_port)))
-            if ok:
-                st.rerun()
-            else:
-                st.error("연결 실패 — 하단 로그 확인")
-    else:
-        st.success("✅ 리더기 연결됨")
-        if st.session_state["last_rfid"]:
-            st.caption(f"최근 태그  \n`{st.session_state['last_rfid']}`")
-        if st.button("⛔ 연결 해제", use_container_width=True):
-            disconnect()
-            st.rerun()
-
-    st.divider()
     if st.button("🧹 더미 데이터 초기화", use_container_width=True, help="기존의 모든 태그 및 이력을 삭제하고 신규 더미 데이터로 리셋합니다."):
         db_reset_dummy()
         st.success("더미 데이터 초기화 완료!")
@@ -1452,7 +1455,7 @@ with tab_out:
 # ══════════════════════════════════════════════════════════
 with tab2:
     st.markdown("#### 재고조사 스캔")
-    st.info("카트를 밀며 리더기로 태그를 스캔하면 아래 목록에 실시간으로 쌓입니다.")
+    st.info("리더기로 태그를 스캔하면 재고조사 진행됩니다.")
 
     c1, c2 = st.columns([2, 2])
     with c1:
