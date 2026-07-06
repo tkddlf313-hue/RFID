@@ -266,6 +266,8 @@ _SESSION_DEFAULTS: dict = {
     "last_rfid":    None,
     "scan_session": [],       # 현재 재고조사 세션 스캔 결과 누적
     "scan_count_prev": 0,     # 이전 렌더링 시 스캔 건수 (신규 감지 토스트용)
+    "ocr_engine_choice": "Gemini 2.5 Flash (AI 분석)",
+    "yolo_engine_choice": "Gemini 2.5 Flash (AI 분석)",
 }
 for _k, _v in _SESSION_DEFAULTS.items():
     if _k not in st.session_state:
