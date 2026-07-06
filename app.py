@@ -220,8 +220,9 @@ st.markdown(
     <div style='background:linear-gradient(90deg,#1B365D,#2E5FA3);
                 padding:1.2rem 1.5rem; border-radius:10px; margin-bottom:1rem;'>
         <h2 style='color:#FFFFFF; margin:0;'>📦 스마트 팩토리 UHF RFID 재고조사 시스템</h2>
-        <p style='color:#B0C4DE; margin:0.3rem 0 0; font-size:14px; font-weight:bold;'>
-            🏆 한솔 AI Festival &nbsp;|&nbsp; Team 천안YB (황원민, 한상일, 박준성)
+        <h5 style='color:#E6EEF8; margin:0.3rem 0 0; font-weight:normal;'>RFID 기반 상시 재고조사 체계 구축을 통한 천안공장 창고 효율화 전략</h5>
+        <p style='color:#B0C4DE; margin:0.4rem 0 0; font-size:13.5px; font-weight:bold;'>
+            🏆 한솔 AI Festival &nbsp;|&nbsp; 한솔제지 Team 천안YB (황원민, 한상일, 박준성)
         </p>
     </div>
     """,
@@ -234,13 +235,15 @@ st.markdown(
     <div style='background-color:#F0F4F8; border-left:5px solid #1B365D; padding:12px 18px; border-radius:4px; margin-bottom:1.5rem;'>
         <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
             <span style='font-size:11px; font-weight:bold; color:#1B365D; text-transform:uppercase; letter-spacing:1px;'>Executive Summary</span>
-            <span style='font-size:11px; color:#555; font-weight:555;'>한솔 AI Festival 2026</span>
+            <span style='font-size:11px; color:#555; font-weight:555;'>한솔제지 천안공장</span>
         </div>
         <div style='font-size:14px; font-weight:bold; color:#111; margin-bottom:6px;'>UHF RFID와 QR코드를 결합한 하이브리드 스마트 창고 관리 플랫폼</div>
-        <div style='font-size:12.5px; color:#333; line-height:1.5;'>
-            • <b>현장의 문제 해결</b>: 대형 초지/보전 자재의 수작업 재고조사 한계 및 선입선출 추적 오류 해결<br/>
-            • <b>하이브리드 프로세스</b>: <u>입고/재고조사</u>는 대용량 무선 RFID로, <u>출고/소진</u>은 스마트폰 카메라 QR 스캔으로 처리하여 비용 및 작업 편의성 최적화<br/>
-            • <b>기대 효과</b>: 창고 실시간 전수 재고조사 시간 90% 이상 단축 및 선입선출 오류 제로화 달성
+        <div style='font-size:12.5px; color:#333; line-height:1.6;'>
+            • <b>현장의 문제 해결</b>: 원부재료, 기자재의 수작업 재고조사 한계 및 선입선출 추적 오류 해결<br/>
+            • <b>하이브리드 프로세스</b>: <u>입고/재고조사</u>는 대용량 무선 RFID로, <u>입/출고 기록</u>은 스마트폰 카메라 QR 스캔으로 처리하여 비용 및 작업 편의성 최적화<br/>
+            • <b>기대 효과</b>:<br/>
+            &nbsp;&nbsp;1. 창고 실시간 전수 재고조사 시간 90% 이상 단축 및 선입선출 오류 제로화 달성<br/>
+            &nbsp;&nbsp;2. 고가 부재료(Felt, Canvas 등)의 선입선출(FIFO) 엄수를 통한 자재 사용 수명 극대화 및 안전 재고 최적화로 창고 운전자본 효율성 대폭 증가
         </div>
     </div>
     """,
