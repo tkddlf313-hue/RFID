@@ -1299,6 +1299,15 @@ with tab_out:
 
     _scanned_epc = ""
 
+    if _out_mode == "📷 QR 카메라 스캔":
+        _cam_img = st.camera_input("카메라로 QR코드를 스캔하세요", key="out_cam")
+        if _cam_img:
+            _decoded = decode_qr_from_bytes(_cam_img.getvalue())
+            if _decoded:
+                _scanned_epc = _decoded
+                st.success(f"✅ QR 인식: `{_scanned_epc}`")
+            else:
+                st.warning("QR코드를 인식하지 못했습니다. 더 가까이서 촬영해 보세요.")
     elif _out_mode == "⌨️ EPC 직접 입력":
         _scanned_epc = st.text_input(
             "EPC 입력", placeholder="예: E004015025A1C00100000001",
