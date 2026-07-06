@@ -143,6 +143,18 @@ def init_db() -> None:
                 out_at     TEXT NOT NULL,
                 reason     TEXT DEFAULT '소진'
             );
+            CREATE TABLE IF NOT EXISTS incoming_log (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                tag_id     TEXT NOT NULL,
+                item_name  TEXT NOT NULL,
+                category   TEXT DEFAULT '',
+                mat_number TEXT DEFAULT '',
+                qty_in     INTEGER NOT NULL,
+                qty_before INTEGER NOT NULL,
+                qty_after  INTEGER NOT NULL,
+                in_at      TEXT NOT NULL,
+                remark     TEXT DEFAULT '입고'
+            );
         """)
         # ── 기존 DB 마이그레이션: 없는 컬럼 추가 ──
         cols = [r[1] for r in conn.execute("PRAGMA table_info(tags)").fetchall()]
@@ -174,6 +186,7 @@ def db_reset_dummy() -> None:
         conn.execute("DELETE FROM tags")
         conn.execute("DELETE FROM scan_log")
         conn.execute("DELETE FROM outgoing_log")
+        conn.execute("DELETE FROM incoming_log")
         import datetime as _dt, random as _rnd
         for epc, name, mat_no, batch, qty, cat, loc in _DUMMY_TAGS:
             delta = _dt.timedelta(
@@ -521,6 +534,33 @@ def db_all_outgoing() -> list[dict]:
     with get_db() as conn:
         return [dict(r) for r in conn.execute(
             "SELECT * FROM outgoing_log ORDER BY out_at DESC"
+        ).fetchall()]
+
+
+def db_incoming(tag_id: str, qty_in: int, remark: str = "입고") -> tuple[bool, str]:
+    """수량 가산 + 입고 이력 기록"""
+    tag = db_get_tag(tag_id)
+    if tag is None:
+        return False, "등록되지 않은 태그입니다."
+    qty_before = tag["quantity"]
+    if qty_in <= 0:
+        return False, "입고 수량은 1 이상이어야 합니다."
+    qty_after = qty_before + qty_in
+    with get_db() as conn:
+        conn.execute("UPDATE tags SET quantity=? WHERE tag_id=?", (qty_after, tag_id))
+        conn.execute(
+            "INSERT INTO incoming_log(tag_id,item_name,category,mat_number,qty_in,qty_before,qty_after,in_at,remark) VALUES(?,?,?,?,?,?,?,?,?)",
+            (tag_id, tag["item_name"], tag.get("category", ""), tag.get("mat_number", ""),
+             qty_in, qty_before, qty_after, now_str(), remark),
+        )
+    return True, f"입고 완료: {qty_before} → {qty_after} EA"
+
+
+def db_all_incoming() -> list[dict]:
+    """입고 이력 전체 조회 (최신순)"""
+    with get_db() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM incoming_log ORDER BY in_at DESC"
         ).fetchall()]
 
 
@@ -945,7 +985,7 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════
 tab1, tab_out, tab2, tab3, tab4, tab5 = st.tabs([
     "📥 1. 입고 & 태그 발행",
-    "📤 2. 출고 스캔",
+    "🔄 2. 입출고 스캔",
     "📡 3. 재고조사 스캔",
     "📷 4. OCR 수량 보완",
     "📊 5. 재고 현황 & 엑셀",
@@ -1118,13 +1158,20 @@ with tab1:
 
 
 # ══════════════════════════════════════════════════════════
-# 탭 2 — 출고 스캔 (QR / EPC 직접)
+# 탭 2 — 입출고 스캔 (QR / EPC 직접)
 # ══════════════════════════════════════════════════════════
 OUTGOING_REASONS = ["소진", "파손", "반품", "기타"]
+INCOMING_REASONS = ["정상 입고", "반품 회수", "재고 조정", "기타"]
 
 with tab_out:
-    st.markdown("#### 📤 출고 스캔 — QR코드 또는 EPC 직접 입력")
-    st.info("스마트폰 카메라로 자재의 QR코드를 스캔하거나 EPC를 직접 입력해 출고 처리합니다.")
+    st.markdown("#### 🔄 입출고 스캔 — QR코드 또는 EPC 직접 입력")
+    st.info("스마트폰 카메라로 자재의 QR코드를 스캔하거나 EPC를 직접 입력해 입고/출고 처리합니다.")
+
+    # ── 입고/출고 모드 선택 ──
+    _inout_mode = st.radio(
+        "작업 구분", ["📥 입고 (재고 추가)", "📤 출고 (재고 차감)"],
+        horizontal=True, key="inout_mode_choice"
+    )
 
     # ── 스캔 입력 방식 선택 ──
     _out_mode = st.radio(
@@ -1145,7 +1192,7 @@ with tab_out:
                 st.warning("QR코드를 인식하지 못했습니다. 더 가까이서 촬영해 보세요.")
     else:
         _scanned_epc = st.text_input(
-            "EPC 입력", placeholder="예: A1B2C3D4E5F60001",
+            "EPC 입력", placeholder="예: E004015025A1C00100000001",
             key="out_epc_input"
         ).upper().strip()
 
@@ -1163,51 +1210,95 @@ with tab_out:
             _oc3.metric("자재명", _out_tag["item_name"])
             _oc4.metric("현재 재고", f"{_out_tag['quantity']} EA")
 
-            if _out_tag["quantity"] == 0:
-                st.error("⛔ 현재 재고가 0입니다. 출고할 수 없습니다.")
-            else:
+            if _inout_mode == "📥 입고 (재고 추가)":
                 st.markdown("---")
                 _q_col, _r_col = st.columns([1, 1])
-                _qty_out = _q_col.number_input(
-                    "출고 수량", min_value=1,
-                    max_value=int(_out_tag["quantity"]),
-                    value=1, key="out_qty"
+                _qty_in = _q_col.number_input(
+                    "입고 수량", min_value=1,
+                    value=1, key="in_qty"
                 )
-                _reason = _r_col.selectbox("출고 사유", OUTGOING_REASONS, key="out_reason")
+                _remark = _r_col.selectbox("입고 사유/비고", INCOMING_REASONS, key="in_reason")
 
-                _qty_after_preview = _out_tag["quantity"] - _qty_out
+                _qty_after_preview = _out_tag["quantity"] + _qty_in
                 st.info(
-                    f"출고 확인 시: **{_out_tag['quantity']} EA → {_qty_after_preview} EA** "
-                    f"({'⚠️ 재고 소진!' if _qty_after_preview == 0 else ''})"
+                    f"입고 확인 시: **{_out_tag['quantity']} EA → {_qty_after_preview} EA**"
                 )
 
                 if st.button(
-                    f"✅ 출고 확인 ({_out_tag['quantity']} → {_qty_after_preview} EA)",
-                    type="primary", use_container_width=True, key="out_confirm"
+                    f"✅ 입고 확인 ({_out_tag['quantity']} → {_qty_after_preview} EA)",
+                    type="primary", use_container_width=True, key="in_confirm"
                 ):
-                    _ok, _msg = db_outgoing(_scanned_epc, _qty_out, _reason)
+                    _ok, _msg = db_incoming(_scanned_epc, _qty_in, _remark)
                     if _ok:
-                        log(f"[OUT] {_scanned_epc} | {_out_tag['item_name']} | -{_qty_out}EA | {_reason}")
+                        log(f"[IN] {_scanned_epc} | {_out_tag['item_name']} | +{_qty_in}EA | {_remark}")
                         st.success(f"✅ {_msg}")
-                        if _qty_after_preview == 0:
-                            st.warning("⚠️ 해당 자재의 재고가 모두 소진되었습니다!")
                         st.rerun()
                     else:
                         st.error(f"❌ {_msg}")
 
+            else:
+                # 📤 출고 모드
+                if _out_tag["quantity"] == 0:
+                    st.error("⛔ 현재 재고가 0입니다. 출고할 수 없습니다.")
+                else:
+                    st.markdown("---")
+                    _q_col, _r_col = st.columns([1, 1])
+                    _qty_out = _q_col.number_input(
+                        "출고 수량", min_value=1,
+                        max_value=int(_out_tag["quantity"]),
+                        value=1, key="out_qty"
+                    )
+                    _reason = _r_col.selectbox("출고 사유", OUTGOING_REASONS, key="out_reason")
+
+                    _qty_after_preview = _out_tag["quantity"] - _qty_out
+                    st.info(
+                        f"출고 확인 시: **{_out_tag['quantity']} EA → {_qty_after_preview} EA** "
+                        f"({'⚠️ 재고 소진!' if _qty_after_preview == 0 else ''})"
+                    )
+
+                    if st.button(
+                        f"✅ 출고 확인 ({_out_tag['quantity']} → {_qty_after_preview} EA)",
+                        type="primary", use_container_width=True, key="out_confirm"
+                    ):
+                        _ok, _msg = db_outgoing(_scanned_epc, _qty_out, _reason)
+                        if _ok:
+                            log(f"[OUT] {_scanned_epc} | {_out_tag['item_name']} | -{_qty_out}EA | {_reason}")
+                            st.success(f"✅ {_msg}")
+                            if _qty_after_preview == 0:
+                                st.warning("⚠️ 해당 자재의 재고가 모두 소진되었습니다!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {_msg}")
+
     st.markdown("---")
-    st.markdown("#### 📋 출고 이력")
-    _out_logs = db_all_outgoing()
-    if _out_logs:
-        _df_out = pd.DataFrame(_out_logs)[[
-            "out_at", "category", "mat_number", "item_name",
-            "qty_out", "qty_before", "qty_after", "reason"
-        ]]
-        _df_out.columns = ["출고일시", "분류", "자재번호", "자재명", "출고량", "출고전", "출고후", "사유"]
-        st.dataframe(_df_out, use_container_width=True, hide_index=True)
-        st.caption(f"총 {len(_out_logs)}건 출고")
-    else:
-        st.info("아직 출고 이력이 없습니다.")
+    st.markdown("#### 📋 입출고 이력")
+    _hist_tab_in, _hist_tab_out = st.tabs(["📥 입고 이력", "📤 출고 이력"])
+
+    with _hist_tab_in:
+        _in_logs = db_all_incoming()
+        if _in_logs:
+            _df_in = pd.DataFrame(_in_logs)[[
+                "in_at", "category", "mat_number", "item_name",
+                "qty_in", "qty_before", "qty_after", "remark"
+            ]]
+            _df_in.columns = ["입고일시", "분류", "자재번호", "자재명", "입고량", "입고전", "입고후", "비고"]
+            st.dataframe(_df_in, use_container_width=True, hide_index=True)
+            st.caption(f"총 {len(_in_logs)}건 입고")
+        else:
+            st.info("아직 입고 이력이 없습니다.")
+
+    with _hist_tab_out:
+        _out_logs = db_all_outgoing()
+        if _out_logs:
+            _df_out = pd.DataFrame(_out_logs)[[
+                "out_at", "category", "mat_number", "item_name",
+                "qty_out", "qty_before", "qty_after", "reason"
+            ]]
+            _df_out.columns = ["출고일시", "분류", "자재번호", "자재명", "출고량", "출고전", "출고후", "사유"]
+            st.dataframe(_df_out, use_container_width=True, hide_index=True)
+            st.caption(f"총 {len(_out_logs)}건 출고")
+        else:
+            st.info("아직 출고 이력이 없습니다.")
 
 
 # ══════════════════════════════════════════════════════════
