@@ -80,18 +80,33 @@ CATEGORY_LIST = [
 ]
 
 # 더미 데이터 (앱 최초 실행 시 DB가 비어있으면 자동 삽입)
-# (epc, 자재명, 자재번호, 배치코드, 수량, 분류)
+# (epc, 자재명, 자재번호, 배치코드, 수량, 분류, 저장위치)
 _DUMMY_TAGS = [
-    ("A1B2C3D4E5F60001", "SUS304 판재 2T",      "MAT-001", "LOT-2024-001", 150, "원재료"),
-    ("A1B2C3D4E5F60002", "SUS316 환봉 Ø20",     "MAT-002", "LOT-2024-002", 80,  "원재료"),
-    ("A1B2C3D4E5F60003", "알루미늄 앵글 40x40", "MAT-003", "LOT-2024-003", 200, "부재료(조성)"),
-    ("A1B2C3D4E5F60004", "SS400 각관 50x50",    "MAT-004", "LOT-2024-004", 120, "부재료(가공)"),
-    ("A1B2C3D4E5F60005", "SPCC 냉연코일 1.2T",  "MAT-005", "LOT-2024-005", 300, "부재료(환경)"),
-    ("A1B2C3D4E5F60006", "황동봉 Ø15",          "MAT-006", "LOT-2024-006", 60,  "기자재(초지)"),
-    ("A1B2C3D4E5F60007", "철판 3.2T",           "MAT-007", "LOT-2024-007", 90,  "기자재(가공)"),
-    ("A1B2C3D4E5F60008", "동파이프 Ø25",        "MAT-008", "LOT-2024-008", 45,  "기자재(완정)"),
-    ("A1B2C3D4E5F60009", "ABS 플라스틱 판",     "MAT-009", "LOT-2024-009", 500, "기자재(보전)"),
-    ("A1B2C3D4E5F60010", "탄소강 볼트 M12",     "MAT-010", "LOT-2024-010", 1000,"기자재(안전)"),
+    ("E004015025A1C00100000001", "FELT:3.84M*23.40M,PM52 1P", "603160", "10106", 4, "기자재(초지)", "8300"),
+    ("E004015025A1C00200000002", "FELT:3.80M*17.50M,PM52 2P", "603161", "10106", 5, "기자재(초지)", "8300"),
+    ("E004015025A1C00300000003", "FELT:3.80M*16.00M,PM52 3P", "603162", "10106", 4, "기자재(초지)", "8300"),
+    ("E004015025A1C00400000004", "CANVAS:3.75M*31.00M,PM52 1,2군 SINGLE", "603168", "10108", 1, "기자재(초지)", "8300"),
+    ("E004015025A1C00500000005", "CANVAS:3.75M*31.00M,PM52 1,2군 SINGLE", "603168", "10114", 1, "기자재(초지)", "8300"),
+    ("E004015025A1C00600000006", "CANVAS:3.75M*31.00M,PM52 5군 TOP", "603169", "10101", 2, "기자재(초지)", "8300"),
+    ("E004015025A1C00700000007", "CANVAS:3.75M*31.00M,PM52 5군 TOP", "603169", "10114", 1, "기자재(초지)", "8300"),
+    ("E004015025A1C00800000008", "CANVAS:3.75M*38.00M,PM52 3,4군 BTM", "603171", "10114", 3, "기자재(초지)", "8300"),
+    ("E004015025A1C00900000009", "ROD:GROOVED,Ø25*15*4120,RAUA504987", "605163", "", 18, "기자재(초지)", "8300"),
+    ("E004015025A1C01000000010", "ROD:GROOVED,Ø25*23*4120,RAUA504988", "605164", "", 74, "기자재(초지)", "8300"),
+    ("E004015025A1C01100000011", "ROD:GROOVED,VMRØ25*13*4120,RAUA505123", "605254", "", 19, "기자재(초지)", "8300"),
+    ("E004015025A1C01200000012", "ROD BAR:RAUA505124,APPLICATORØ25*4120", "605258", "", 26, "기자재(초지)", "8300"),
+    ("E004015025A1C01300000013", "ROD BED:Ø25,RAUA504989", "605303", "", 27, "기자재(초지)", "8300"),
+    ("E004015025A1C01400000014", "ROD:GROOVED,Ø25*30*4120,RAUA506044", "616785", "", 14, "기자재(초지)", "8300"),
+    ("E004015025A1C01500000015", "CANVAS:3.75M*34.00M,PM52,5군,BOTTOM", "618004", "10101", 2, "기자재(초지)", "8300"),
+    ("E004015025A1C01600000016", "ROD:GROOVED,Ø25*35*4120,RAUA506576", "618278", "", 29, "기자재(초지)", "8300"),
+    ("E004015025A1C01700000017", "WIRE:3.87M*35.25M,PM52 3.0L", "618771", "10102", 3, "기자재(초지)", "8300"),
+    ("E004015025A1C01800000018", "VANE:450*3707(PVC),RAUA122137", "618949", "", 3, "기자재(보전)", "8300"),
+    ("E004015025A1C01900000019", "CANVAS:3.77M*30.50M, PM52, 1군 SINGLE", "619152", "10112", 2, "기자재(초지)", "8300"),
+    ("E004015025A1C02000000020", "CANVAS:3.75M*30.50M, PM52, 2군 SINGLE", "619153", "10112", 2, "기자재(초지)", "8300"),
+    ("E004015025A1C02100000021", "CANVAS:3.75M*34.50M, PM52, 3/4군 TOP", "619154", "10101", 1, "기자재(초지)", "8300"),
+    ("E004015025A1C02200000022", "CANVAS:3.75M*34.50M, PM52, 3/4군 TOP", "619154", "10114", 2, "기자재(초지)", "8300"),
+    ("E004015025A1C02300000023", "HOSE,LOADING:CR L=9000", "626348", "", 2, "기자재(보전)", "8300"),
+    ("E004015025A1C02400000024", "TUBE,AIR:25*30M,고온용,GL&V", "626378", "", 1, "기자재(보전)", "8300"),
+    ("E004015025A1C02500000025", "EXPANDER T BAR:Ø20*3540L,SUJ2,PM52", "626380", "", 1, "기자재(완정)", "8300"),
 ]
 
 
@@ -140,7 +155,7 @@ def init_db() -> None:
         # ── DB가 비어있으면 더미 데이터 자동 삽입 ──
         if conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0] == 0:
             import datetime as _dt, random as _rnd
-            for epc, name, mat_no, batch, qty, cat in _DUMMY_TAGS:
+            for epc, name, mat_no, batch, qty, cat, loc in _DUMMY_TAGS:
                 delta = _dt.timedelta(
                     days=_rnd.randint(0, 30),
                     hours=_rnd.randint(8, 17),
@@ -149,8 +164,28 @@ def init_db() -> None:
                 issued = (_dt.datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
                 conn.execute(
                     "INSERT OR IGNORE INTO tags(tag_id,item_name,lot_number,quantity,issued_at,location,category,mat_number,batch_code) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (epc, name, batch, qty, issued, f"A-{_rnd.randint(1,5)}-{_rnd.randint(1,10):02d}", cat, mat_no, batch),
+                    (epc, name, batch, qty, issued, loc, cat, mat_no, batch),
                 )
+
+
+def db_reset_dummy() -> None:
+    """기존 데이터를 모두 삭제하고 신규 더미 데이터로 초기화"""
+    with get_db() as conn:
+        conn.execute("DELETE FROM tags")
+        conn.execute("DELETE FROM scan_log")
+        conn.execute("DELETE FROM outgoing_log")
+        import datetime as _dt, random as _rnd
+        for epc, name, mat_no, batch, qty, cat, loc in _DUMMY_TAGS:
+            delta = _dt.timedelta(
+                days=_rnd.randint(0, 30),
+                hours=_rnd.randint(8, 17),
+                minutes=_rnd.randint(0, 59),
+            )
+            issued = (_dt.datetime.now() - delta).strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                "INSERT OR IGNORE INTO tags(tag_id,item_name,lot_number,quantity,issued_at,location,category,mat_number,batch_code) VALUES (?,?,?,?,?,?,?,?,?)",
+                (epc, name, batch, qty, issued, loc, cat, mat_no, batch),
+            )
 
 
 init_db()
@@ -897,6 +932,12 @@ with st.sidebar:
         if st.button("⛔ 연결 해제", use_container_width=True):
             disconnect()
             st.rerun()
+
+    st.divider()
+    if st.button("🧹 더미 데이터 초기화", use_container_width=True, help="기존의 모든 태그 및 이력을 삭제하고 신규 더미 데이터로 리셋합니다."):
+        db_reset_dummy()
+        st.success("더미 데이터 초기화 완료!")
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════
