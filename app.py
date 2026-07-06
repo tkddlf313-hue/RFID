@@ -1041,7 +1041,7 @@ with tab1:
 <button class="print-btn" onclick="window.print()">🖨️ 라벨 인쇄</button>
 </body>
 </html>"""
-                st.components.v1.html(_label_html, height=240, scrolling=False)
+                st.components.v1.html(_label_html, height=310, scrolling=False)
                 # 다운로드 버튼도 유지
                 if _qr_bytes:
                     st.download_button(
