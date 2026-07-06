@@ -218,11 +218,30 @@ st.set_page_config(
 st.markdown(
     """
     <div style='background:linear-gradient(90deg,#1B365D,#2E5FA3);
-                padding:1rem 1.5rem; border-radius:10px; margin-bottom:1rem;'>
+                padding:1.2rem 1.5rem; border-radius:10px; margin-bottom:1rem;'>
         <h2 style='color:#FFFFFF; margin:0;'>📦 스마트 팩토리 UHF RFID 재고조사 시스템</h2>
-        <p style='color:#B0C4DE; margin:0.2rem 0 0;'>
-            입고 발행 → 창고 보관 → 재고조사 스캔 → 엑셀 출력
+        <p style='color:#B0C4DE; margin:0.3rem 0 0; font-size:14px; font-weight:bold;'>
+            🏆 한솔 AI Festival &nbsp;|&nbsp; Team 천안YB (황원민, 한상일, 박준성)
         </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# 맥킨지 스타일의 요약 박스 (Executive Summary)
+st.markdown(
+    """
+    <div style='background-color:#F0F4F8; border-left:5px solid #1B365D; padding:12px 18px; border-radius:4px; margin-bottom:1.5rem;'>
+        <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
+            <span style='font-size:11px; font-weight:bold; color:#1B365D; text-transform:uppercase; letter-spacing:1px;'>Executive Summary</span>
+            <span style='font-size:11px; color:#555; font-weight:555;'>한솔 AI Festival 2026</span>
+        </div>
+        <div style='font-size:14px; font-weight:bold; color:#111; margin-bottom:6px;'>UHF RFID와 QR코드를 결합한 하이브리드 스마트 창고 관리 플랫폼</div>
+        <div style='font-size:12.5px; color:#333; line-height:1.5;'>
+            • <b>현장의 문제 해결</b>: 대형 초지/보전 자재의 수작업 재고조사 한계 및 선입선출 추적 오류 해결<br/>
+            • <b>하이브리드 프로세스</b>: <u>입고/재고조사</u>는 대용량 무선 RFID로, <u>출고/소진</u>은 스마트폰 카메라 QR 스캔으로 처리하여 비용 및 작업 편의성 최적화<br/>
+            • <b>기대 효과</b>: 창고 실시간 전수 재고조사 시간 90% 이상 단축 및 선입선출 오류 제로화 달성
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -998,20 +1017,38 @@ tab1, tab_out, tab2, tab3, tab4, tab5 = st.tabs([
 # ══════════════════════════════════════════════════════════
 with tab1:
     st.markdown("#### 새 자재 입고 및 RFID 태그 발행")
-    st.info("① 품명·Lot·수량 입력  →  ② USB 리더기 위에 빈 태그 올려둠  →  ③ 태그 발행 클릭")
+
+    _desc_col, _auto_col = st.columns([3, 1])
+    with _desc_col:
+        st.info("① 품명·Lot·수량 입력  →  ② USB 리더기 위에 빈 태그 올려둠  →  ③ 태그 발행 클릭")
+    with _auto_col:
+        if st.button("💡 테스트 예제 입력", use_container_width=True, help="테스트용 예제 데이터를 자동으로 입력 필드에 채워줍니다."):
+            import random as _rnd
+            _sample = _rnd.choice(_DUMMY_TAGS)
+            st.session_state["fill_category"] = _sample[5]
+            st.session_state["fill_mat_number"] = _sample[2]
+            st.session_state["fill_item_name"] = _sample[1]
+            st.session_state["fill_batch_code"] = _sample[3] if _sample[3] else f"LOT-{datetime.datetime.now().strftime('%Y%m%d')}"
+            st.session_state["fill_location"] = _sample[6]
+            st.session_state["fill_quantity"] = int(_sample[4])
+            st.rerun()
 
     with st.form("form_issue"):
         # 1행: 자재 분류 / 자재번호 / 자재명
         r1c1, r1c2, r1c3 = st.columns([1.2, 1.2, 1.5])
-        category   = r1c1.selectbox("자재 분류 *", CATEGORY_LIST)
-        mat_number = r1c2.text_input("자재번호", placeholder="예: MAT-001")
-        item_name  = r1c3.text_input("자재명 *", placeholder="예: SUS304 판재 2T")
+        try:
+            cat_idx = CATEGORY_LIST.index(st.session_state.get("fill_category", "기자재(초지)"))
+        except ValueError:
+            cat_idx = 0
+        category   = r1c1.selectbox("자재 분류 *", CATEGORY_LIST, index=cat_idx)
+        mat_number = r1c2.text_input("자재번호", value=st.session_state.get("fill_mat_number", ""), placeholder="예: MAT-001")
+        item_name  = r1c3.text_input("자재명 *", value=st.session_state.get("fill_item_name", ""), placeholder="예: SUS304 판재 2T")
 
         # 2행: 배치코드 / 저장위치 / 수량
         r2c1, r2c2, r2c3 = st.columns([1.5, 1.5, 1])
-        batch_code = r2c1.text_input("배치코드", placeholder="예: LOT-2024-001")
-        location   = r2c2.text_input("저장위치", placeholder="예: A구역-1단-03번")
-        quantity   = r2c3.number_input("수량 (EA)", min_value=0, value=0)
+        batch_code = r2c1.text_input("배치코드", value=st.session_state.get("fill_batch_code", ""), placeholder="예: LOT-2024-001")
+        location   = r2c2.text_input("저장위치", value=st.session_state.get("fill_location", ""), placeholder="예: A구역-1단-03번")
+        quantity   = r2c3.number_input("수량 (EA)", min_value=0, value=st.session_state.get("fill_quantity", 0))
 
         epc_mode   = st.radio("EPC 생성 방식", ["자동 생성 (UUID)", "직접 입력"], horizontal=True)
         manual_epc = ""
